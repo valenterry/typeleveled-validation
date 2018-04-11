@@ -4,14 +4,14 @@ import Validatable._
 
 case class UserForm(firstName: FirstName, lastName: LastName, address: Address)
 case class FirstName(value: String) extends AnyVal
-case class LastName(value: String) extends AnyVal
+case class LastName(value: String)  extends AnyVal
 case class Address(street: Street, city: City, zipCode: ZipCode, country: Country)
 case class Street(name: StreetName, number: StreetNumber)
-case class StreetName(value: String) extends AnyVal
+case class StreetName(value: String)   extends AnyVal
 case class StreetNumber(value: String) extends AnyVal
-case class City(value: String) extends AnyVal
-case class ZipCode(value: Int) extends AnyVal
-case class Country(value: String) extends AnyVal
+case class City(value: String)         extends AnyVal
+case class ZipCode(value: Int)         extends AnyVal
+case class Country(value: String)      extends AnyVal
 
 object ValidatableInstances {
   //Some examples of already implemented validation
@@ -30,22 +30,29 @@ object ValidatableInstances {
     }
   }
 
-  // TODO: implement validation...
   //zipcode is valid between 0 and 99999
-  implicit val zipCodeValidatable: Validatable[ZipCode] = ???
+  implicit val zipCodeValidatable: Validatable[ZipCode] = Validatable.from[ZipCode] { zipCode =>
+    if (zipCode.value < 0 || zipCode.value > 99999) ("Zipcode out of range").invalidNel else Validatable.valid
+  }
 
   //city is always valid
-  implicit val cityValidatable: Validatable[City] = ???
+  implicit val cityValidatable: Validatable[City] = Validatable.alwaysValid[City]
 
   //Streetnumber and name must not be empty
-  implicit val streetNumberValidatable: Validatable[StreetNumber] = ???
-  implicit val streetNameValidatable: Validatable[StreetName] = ???
+  implicit val streetNumberValidatable: Validatable[StreetNumber] = Validatable.from[StreetNumber] { num =>
+    if (num.value.isEmpty) ("Street number must not be empty").invalidNel else Validatable.valid
+  }
+  implicit val streetNameValidatable: Validatable[StreetName] = Validatable.from[StreetName] { name =>
+    if (name.value.isEmpty) ("Street name must not be empty").invalidNel else Validatable.valid
+  }
 
   //Street, adress and whole userform are valid if all of their fields are valid
   //They contain all the errors of their inner fields
-  implicit val streetValidatable: Validatable[Street] = ???
-  implicit val addressValidatable: Validatable[Address] = ???
-  implicit val userFormValidatable: Validatable[UserForm] = ???
+  implicit val streetValidatable: Validatable[Street] = Validatable.from[Street](street => street.name.validate |+| street.number.validate)
+  implicit val addressValidatable: Validatable[Address] =
+    Validatable.from[Address](address => address.zipCode.validate |+| address.country.validate |+| address.city.validate |+| address.street.validate)
+  implicit val userFormValidatable: Validatable[UserForm] =
+    Validatable.from[UserForm](form => form.address.validate |+| form.firstName.validate |+| form.lastName.validate)
 }
 
 trait Validatable[A] {
@@ -57,8 +64,8 @@ object Validatable {
   type ValidationResult = ValidatedNel[Error, Unit]
 
   //Helpers
-  val valid: ValidationResult        = ().validNel
-  def alwaysValid[A]: Validatable[A] = Validatable.from(a => ().validNel)
+  val valid: ValidationResult                                          = ().validNel
+  def alwaysValid[A]: Validatable[A]                                   = Validatable.from(a => ().validNel)
   def from[A](validateFunction: A => ValidationResult): Validatable[A] = (a: A) => validateFunction(a)
 
   //Syntax
