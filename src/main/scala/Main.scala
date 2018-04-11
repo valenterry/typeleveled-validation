@@ -16,23 +16,23 @@ case class Country(value: String)      extends AnyVal
 object ValidatableInstances {
   //Some examples of already implemented validation
   implicit val firstNameValidatable = Validatable.from[FirstName] { name =>
-    if (name.value.size > 30) s"Your first name is too long (${name.value.size} chars). Please change it to < 30".invalidNel else Validatable.valid
+    if (name.value.size > 30) (Nil -> s"Your first name is too long (${name.value.size} chars). Please change it to < 30").invalidNel else Validatable.valid
   }
 
   implicit val lastNameValidatable = Validatable.from[LastName] { name =>
-    if (name.value.capitalize != name.value) s"Your last name doesn't start with a capital letter? Really?".invalidNel else Validatable.valid
+    if (name.value.capitalize != name.value) (Nil -> s"Your last name doesn't start with a capital letter? Really?").invalidNel else Validatable.valid
   }
 
   implicit val countryValidation = Validatable.from[Country] { country =>
     country.value match {
       case "Germany" | "Japan" | "Iceland" => Validatable.valid
-      case other: String                   => s"We don't really like $other. Please move to a nicer country!".invalidNel
+      case other: String                   => (Nil -> s"We don't really like $other. Please move to a nicer country!").invalidNel
     }
   }
 
   //zipcode is valid between 0 and 99999
   implicit val zipCodeValidatable: Validatable[ZipCode] = Validatable.from[ZipCode] { zipCode =>
-    if (zipCode.value < 0 || zipCode.value > 99999) ("Zipcode out of range").invalidNel else Validatable.valid
+    if (zipCode.value < 0 || zipCode.value > 99999) (Nil -> "Zipcode out of range").invalidNel else Validatable.valid
   }
 
   //city is always valid
@@ -40,15 +40,17 @@ object ValidatableInstances {
 
   //Streetnumber and name must not be empty
   implicit val streetNumberValidatable: Validatable[StreetNumber] = Validatable.from[StreetNumber] { num =>
-    if (num.value.isEmpty) ("Street number must not be empty").invalidNel else Validatable.valid
+    if (num.value.isEmpty) (Nil -> "Street number must not be empty").invalidNel else Validatable.valid
   }
   implicit val streetNameValidatable: Validatable[StreetName] = Validatable.from[StreetName] { name =>
-    if (name.value.isEmpty) ("Street name must not be empty").invalidNel else Validatable.valid
+    if (name.value.isEmpty) (Nil -> "Street name must not be empty").invalidNel else Validatable.valid
   }
 
   //Street, adress and whole userform are valid if all of their fields are valid
-  //They contain all the errors of their inner fields
+  //They contain all the errors of their inner fields, with the fields errors having the field name in the list
+  // TODO: Change it so that the errors from the inner fields contain the path to the field in its errors
   implicit val streetValidatable: Validatable[Street] = Validatable.from[Street](street => street.name.validate |+| street.number.validate)
+  // Example: Validation address with wrong street number should be invalid with error: (List("street", "number"), "errormsg for streetnumber")
   implicit val addressValidatable: Validatable[Address] =
     Validatable.from[Address](address => address.zipCode.validate |+| address.country.validate |+| address.city.validate |+| address.street.validate)
   implicit val userFormValidatable: Validatable[UserForm] =
@@ -60,7 +62,10 @@ trait Validatable[A] {
 }
 
 object Validatable {
-  type Error            = String
+  //Error type now contains the path to the field where the error occurred
+  //When validating a user form and the addresses street number is invalid, the error is: (List('address', 'street', 'number'), "street number is invalid")
+  //When validating country for itself and itself is invalid (not one of it's fields, because it has none / is a value class), the error is: (Nil, "country is invalid")
+  type Error            = (List[String], String)
   type ValidationResult = ValidatedNel[Error, Unit]
 
   //Helpers
