@@ -1,6 +1,13 @@
+import shapeless._
+import cats._
+import cats.data._
 import cats.implicits._
 import cats.data.ValidatedNel
 import Validatable._
+import cats.data.Validated.{Invalid, Valid}
+import shapeless.LabelledGeneric.Aux
+import shapeless.labelled.FieldType
+import shapeless.ops.hlist._
 
 case class UserForm(firstName: FirstName, lastName: LastName, address: Address)
 case class FirstName(value: String) extends AnyVal
@@ -48,27 +55,10 @@ object ValidatableInstances {
 
   //Street, adress and whole userform are valid if all of their fields are valid
   //They contain all the errors of their inner fields, with the fields errors having the field name in the list
-  implicit val streetValidatable: Validatable[Street] = Validatable.from[Street](
-    street =>
-      prependField("name", street.name.validate) |+|
-        prependField("number", street.number.validate)
-  )
-  // Example: Validation address with wrong street number should be invalid with error: (List("street", "number"), "errormsg for streetnumber")
-  implicit val addressValidatable: Validatable[Address] =
-    Validatable.from[Address](
-      address =>
-        prependField("zipCode", address.zipCode.validate) |+|
-          prependField("country", address.country.validate) |+|
-          prependField("city", address.city.validate) |+|
-          prependField("street", address.street.validate)
-    )
-  implicit val userFormValidatable: Validatable[UserForm] =
-    Validatable.from[UserForm](
-      form =>
-        prependField("address", form.address.validate) |+|
-          prependField("firstName", form.firstName.validate) |+|
-          prependField("lastName", form.lastName.validate)
-    )
+  //These are generated at compiletime
+  implicit val streetValidatable: Validatable[Street] = Validatable.from[Street](generateValidationResult(_))
+  implicit val addressValidatable: Validatable[Address] = Validatable.from[Address](generateValidationResult(_))
+  implicit val userFormValidatable: Validatable[UserForm] = Validatable.from[UserForm](generateValidationResult(_))
 }
 
 trait Validatable[A] {
@@ -90,10 +80,25 @@ object Validatable {
     result.leftMap(errors =>
       errors.map {
         case (fieldNames, message) => (fieldName :: fieldNames, message)
-      })
+    })
 
   //Syntax
   implicit class ValidatableOps[A: Validatable](private val a: A) {
     def validate = implicitly[Validatable[A]].validate(a)
   }
+
+  // TODO: Complete methods that generate ValidationResult for every case class on typelevel
+
+  // Hint: We use this poly function for each step of the fold.
+  // We receive an already aggregated ValidationResult and a field of the LabelledGeneric
+  // We want to return a new ValidationResult which combines the old ValidationResult and the one that we got from the (next) field
+  // Precondition is, that the field's type of the LabelledGeneric has a Validatable Instance in scope
+  object CombineToValidationResult extends Poly2 {
+    implicit def combine[???](???): ??? =
+      at { (startResult: ???, nextField: ???) => ??? }
+  }
+
+  //Hint: Use shapeless LabelledGeneric and LeftFolder.
+  def generateValidationResult[InputType, ???](obj: InputType)(???)
+  ): ??? = ???
 }
