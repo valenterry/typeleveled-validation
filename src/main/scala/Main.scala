@@ -48,13 +48,27 @@ object ValidatableInstances {
 
   //Street, adress and whole userform are valid if all of their fields are valid
   //They contain all the errors of their inner fields, with the fields errors having the field name in the list
-  // TODO: Change it so that the errors from the inner fields contain the path to the field in its errors
-  implicit val streetValidatable: Validatable[Street] = Validatable.from[Street](street => street.name.validate |+| street.number.validate)
+  implicit val streetValidatable: Validatable[Street] = Validatable.from[Street](
+    street =>
+      prependField("name", street.name.validate) |+|
+        prependField("number", street.number.validate)
+  )
   // Example: Validation address with wrong street number should be invalid with error: (List("street", "number"), "errormsg for streetnumber")
   implicit val addressValidatable: Validatable[Address] =
-    Validatable.from[Address](address => address.zipCode.validate |+| address.country.validate |+| address.city.validate |+| address.street.validate)
+    Validatable.from[Address](
+      address =>
+        prependField("zipCode", address.zipCode.validate) |+|
+          prependField("country", address.country.validate) |+|
+          prependField("city", address.city.validate) |+|
+          prependField("street", address.street.validate)
+    )
   implicit val userFormValidatable: Validatable[UserForm] =
-    Validatable.from[UserForm](form => form.address.validate |+| form.firstName.validate |+| form.lastName.validate)
+    Validatable.from[UserForm](
+      form =>
+        prependField("address", form.address.validate) |+|
+          prependField("firstName", form.firstName.validate) |+|
+          prependField("lastName", form.lastName.validate)
+    )
 }
 
 trait Validatable[A] {
@@ -72,6 +86,11 @@ object Validatable {
   val valid: ValidationResult                                          = ().validNel
   def alwaysValid[A]: Validatable[A]                                   = Validatable.from(a => ().validNel)
   def from[A](validateFunction: A => ValidationResult): Validatable[A] = (a: A) => validateFunction(a)
+  def prependField(fieldName: String, result: ValidationResult) =
+    result.leftMap(errors =>
+      errors.map {
+        case (fieldNames, message) => (fieldName :: fieldNames, message)
+      })
 
   //Syntax
   implicit class ValidatableOps[A: Validatable](private val a: A) {
