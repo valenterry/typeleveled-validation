@@ -56,9 +56,9 @@ object ValidatableInstances {
   //Street, adress and whole userform are valid if all of their fields are valid
   //They contain all the errors of their inner fields, with the fields errors having the field name in the list
   //These are generated at compiletime
-  implicit val streetValidatable: Validatable[Street] = Validatable.from[Street](generateValidatable(_))
-  implicit val addressValidatable: Validatable[Address] = Validatable.from[Address](generateValidatable(_))
-  implicit val userFormValidatable: Validatable[UserForm] = Validatable.from[UserForm](generateValidatable(_))
+  implicit val streetValidatable: Validatable[Street]     = Validatable.from[Street](generateValidationResult(_))
+  implicit val addressValidatable: Validatable[Address]   = Validatable.from[Address](generateValidationResult(_))
+  implicit val userFormValidatable: Validatable[UserForm] = Validatable.from[UserForm](generateValidationResult(_))
 }
 
 trait Validatable[A] {
@@ -87,18 +87,18 @@ object Validatable {
     def validate = implicitly[Validatable[A]].validate(a)
   }
 
-  // TODO: Complete methods that generate ValidationResult for every case class on typelevel
-
-  // Hint: We use this poly function for each step of the fold.
-  // We receive an already aggregated ValidationResult and a field of the LabelledGeneric
-  // We want to return a new ValidationResult which combines the old ValidationResult and the one that we got from the (next) field
-  // Precondition is, that the field's type of the LabelledGeneric has a Validatable Instance in scope
+  //Helpers to generate ValidationResult from a case class instance for which each of its fields has an Validatable instance
   object CombineToValidationResult extends Poly2 {
-    implicit def combine[???](???): ??? =
-      at { (startResult: ???, nextField: ???) => ??? }
+    implicit def combine[AttrName <: Symbol, AttrType: Validatable](
+        implicit fieldNameWit: Witness.Aux[AttrName]): Case.Aux[ValidationResult, FieldType[AttrName, AttrType], ValidationResult] =
+      at { (startResult: ValidationResult, nextField: FieldType[AttrName, AttrType]) =>
+        startResult |+| Validatable.prependField(fieldNameWit.value.name, the[Validatable[AttrType]].validate(nextField))
+      }
   }
 
-  //Hint: Use shapeless LabelledGeneric and LeftFolder.
-  def generateValidatable[InputType, ???](obj: InputType)(???)
-  ): ??? = ???
+  def generateValidationResult[InputType, InputLG <: HList, CombinedValidationResult](obj: InputType)(
+      implicit
+      labelledGeneric: LabelledGeneric.Aux[InputType, InputLG],
+      leftFolder: LeftFolder.Aux[InputLG, ValidationResult, CombineToValidationResult.type, CombinedValidationResult]): CombinedValidationResult =
+    labelledGeneric.to(obj).foldLeft(Validatable.valid)(CombineToValidationResult)
 }
