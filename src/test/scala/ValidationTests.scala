@@ -69,18 +69,37 @@ class ValidationTests extends FunSpec with Matchers {
       }
     }
     it("street") {
-      Street(StreetName(""), StreetNumber("")).validate should matchPattern {
-        case Invalid(NonEmptyList(("name" :: Nil, _), ("number" :: Nil, _) :: Nil)) =>
+      Street(StreetName(""), StreetNumber("")).validate match {
+        case Invalid(errors) => errors.toList.map(_._1) should contain theSameElementsAs List("name" :: Nil, "number" :: Nil)
+        case other           => assert(false, s"$other")
       }
     }
     it("address") {
-      Address(Street(StreetName(""), StreetNumber("")), City(""), ZipCode(-5555), Country("Ireland")).validate should matchPattern {
-        case Invalid(NonEmptyList(("street" :: "name" :: Nil, _), ("street" :: "number" :: Nil, _) :: ("zipCode" :: Nil, _) :: ("country" :: Nil, _) :: Nil)) =>
+      Address(Street(StreetName(""), StreetNumber("")), City(""), ZipCode(-5555), Country("Ireland")).validate match {
+        case Invalid(errors) =>
+          errors.toList.map(_._1) should contain theSameElementsAs List("street" :: "name" :: Nil,
+                                                                        "street" :: "number" :: Nil,
+                                                                        "zipCode" :: Nil,
+                                                                        "country" :: Nil)
+        case other => assert(false, s"$other")
       }
     }
     it("userForm") {
-      UserForm(FirstName("Jasminxxxxxxxxxxxxxxxxxxxxxxxxxx"), LastName("laba"), Address(Street(StreetName(""), StreetNumber("")), City("Hamburg"), ZipCode(-5555), Country("Ireland"))).validate should matchPattern {
-        case Invalid(NonEmptyList(("firstName" :: Nil, _), ("lastName" :: Nil, _) :: ("address" :: "street" :: "name" :: Nil, _) :: ("address" :: "street" :: "number" :: Nil, _) :: ("address" :: "zipCode" :: Nil, _) :: ("address" :: "country" :: Nil, _) :: Nil)) =>
+      UserForm(
+        FirstName("Jasminxxxxxxxxxxxxxxxxxxxxxxxxxx"),
+        LastName("laba"),
+        Address(Street(StreetName(""), StreetNumber("")), City("Hamburg"), ZipCode(-5555), Country("Ireland"))
+      ).validate match {
+        case Invalid(errors) =>
+          errors.toList.map(_._1) should contain theSameElementsAs List(
+            "firstName" :: Nil,
+            "lastName" :: Nil,
+            "address" :: "street" :: "name" :: Nil,
+            "address" :: "street" :: "number" :: Nil,
+            "address" :: "zipCode" :: Nil,
+            "address" :: "country" :: Nil
+          )
+        case other => assert(false, s"$other")
       }
     }
   }
